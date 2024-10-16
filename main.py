@@ -10,7 +10,7 @@ import torch
 import torch.distributions as D
 import yaml
 
-from cv2 import VideoWriter, VideoWriter_fourcc
+# from cv2 import VideoWriter, VideoWriter_fourcc
 
 from config.config import Config
 from environment.env_wrappers import SubprocVecEnv, DummyVecEnv
@@ -50,17 +50,23 @@ def prerun(config):
     curr_run = 'run%i' % run_num
     run_dir = model_dir / curr_run
     log_dir = run_dir / 'logs'
-    os.makedirs(log_dir)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
     return run_dir, log_dir
 
 def reset_wrapper(env):
     o = env.reset()
     c = env.get_attributes()
     e = env.get_entities()
+    # 这个observability_mask矩阵应有的维度本身是[n_agents, n_entities]即每个智能体能不能看到其他实体（包括智能体）
+    # 但代码中还定义了实体是否存活（active）的标志，因此维度就变成了[n_agents, n_entities*2]，后面多出的维度代表是否存活的标志
+    # 因此 如果有6个智能体，8个landmarks，m的维度就是[6,28] 和mpe84对应
     m = env.get_observability()
     split = m.shape[-1] // 2
     mo, ms = m[..., :split], m[...,split:]
-    return o, e, c, mo, ms
+    # 获取每个coach的mask列表
+    mc_list = env.get_observability_coaches()
+    return o, e, c, mo, ms, mc_list
 
 def step_wrapper(env, actions):
     no, r, d, _ = env.step(actions)
@@ -68,7 +74,8 @@ def step_wrapper(env, actions):
     m = env.get_observability()
     split = m.shape[-1] // 2
     mo, ms = m[..., :split], m[...,split:]
-    return no, ne, mo, ms, r.sum(-1), d
+    mc_list = env.get_observability_coaches()
+    return no, ne, mo, ms, r.sum(-1), d, mc_list
 
 def update_config(env, config):
     o = env.reset()
@@ -321,7 +328,8 @@ def run():
     logger = SummaryWriter(log_dir)
 
     for it in range(n_iters):
-        o, e, c, m, ms = reset_wrapper(env)
+        # 对应的这里的m代表能不能看到，ms代表是否是活跃的
+        o, e, c, m, ms, mc_list = reset_wrapper(env)
         prev_a = torch.zeros(o.shape[0], o.shape[1]).long().to(config.device)
 
         temporal_buffer = collections.deque(maxlen=config.centralized_every+1) # record t=0,1,...T
@@ -339,32 +347,57 @@ def run():
             if "interval" in config.method and t % config.centralized_every == 0:
                 m = ms
 
-            o_, e_, c_, m_, ms_ = mac.tensorize(o, e, c, m, ms)
+            o_, e_, c_, m_, ms_, mc_list_ = mac.tensorize(o, e, c, m, ms, mc_list)
+            # 把mc_list内的mc变成tensor
+            # mc_list_ = mac.tensorize_list(mc_list)
 
             if config.has_coach and t % config.centralized_every == 0:
                 with torch.no_grad():
                     z_team, _, _ = qlearner.coach(o_, e_, c_, ms_)
                     mac.set_team_strategy(z_team)
 
-            actions, rnn_hidden = mac.step(o_, e_, c_, m_, ms_, rnn_hidden, prev_a, epsilon) # [n_agents,]
+            #如果是多个coach
+            if config.has_coaches and t % config.centralized_every == 0:
+                # 这里是第一版，对zteam求聚合平均
+                # z_team_list = []
+                # with torch.no_grad():
+                #     for coach_index in range(mc_list_.shape[1]):
+                #         mc_ = mc_list_[:,coach_index]
+                #         z_team, _, _ = qlearner.coach(o_, e_, c_, mc_)
+                #         z_team_list.append(z_team)
+                #     #TODO 这里如果直接给list里的zteam做平均？
+                #     z_team_coaches = torch.stack(z_team_list, dim=0).mean(dim=0)
+                #     mac.set_team_strategy(z_team_coaches)
+                ## 第二版，这里采用将隐藏层聚合求平均的方式，然后再算zteam
+                coach_h_list = []
+                with torch.no_grad():
+                    for coach_index in range(mc_list_.shape[1]):
+                        mc_ = mc_list_[:, coach_index]
+                        coach_h = qlearner.coach.encode(o_, e_, c_, mc_)
+                        coach_h_list.append(coach_h)
+                    coach_h = torch.stack(coach_h_list, dim=0).mean(dim=0)
+                    z_team, _, _ = qlearner.coach.strategy(coach_h)
+                    mac.set_team_strategy(z_team)
+
+            actions, rnn_hidden = mac.step(o_, e_, c_, m_, ms_, rnn_hidden, prev_a, epsilon) # [n_agents,] 喂给agent网络，最终能得到所有agent的动作以及隐藏层状态输出
             prev_a = torch.LongTensor(actions).to(config.device)
 
-            no, ne, nm, nms, r, d = step_wrapper(env, actions)
+            no, ne, nm, nms, r, d, nmc_list = step_wrapper(env, actions) # 根据新的动作，更新环境的状态，获取奖励r  d是done
 
-            temporal_buffer.append((o, e, c, m, ms, actions, r))
+            temporal_buffer.append((o, e, c, m, ms, actions, r, mc_list)) # 把数据保存到buffer中
             episode_reward += r
 
             if t % config.centralized_every == 0 and t > 0:
-                O, E, C, M, MS, A, R = map(np.stack, zip(*temporal_buffer))
+                O, E, C, M, MS, A, R, MC = map(np.stack, zip(*temporal_buffer)) #这里将buffer中的所有信息堆叠在了一起 比如o：[1,6,14] O:[5,1,6,14] 因为这时候buffer里保存了5个step的数据
                 for j in range(config.n_rollout_threads):
                     qlearner.buffer.push(O[:,j], E[:,j], C[:,j],
-                                         M[:,j], MS[:,j], A[:,j], R[:,j])
+                                         M[:,j], MS[:,j], A[:,j], R[:,j], MC[:,j]) # 代表这是一次更新所需要的数据，如果是多线程，每个线程的数据都会被分开存入replay buffer
 
             if (step - prev_update_step) >= config.update_every:
                 prev_update_step = step
                 qlearner.update(logger, step)
 
-            o = no; e = ne; m = nm; ms = nms
+            o = no; e = ne; m = nm; ms = nms; mc_list = nmc_list
 
         reward_buffer.extend(episode_reward)
         pbar.update(1)

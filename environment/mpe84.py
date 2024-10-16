@@ -34,6 +34,20 @@ class Scenario(BaseScenario):
             agent.attribute = np.zeros((5))
             agent.size = 0.04
 
+        #添加 coaches
+        num_coaches = 2
+        world.coaches = [Landmark() for i in range(num_coaches)]
+        world.observability_mask_coaches = [np.zeros((6,14)) for _ in range(num_coaches)] #有几个coach就要有几个对应的mask
+
+        for i, coach in enumerate(world.coaches):
+            coach.i = i
+            coach.name = "coach %d" % i
+            coach.collide = False
+            coach.movable = False
+            coach.state.p_pos = np.array([-0.5, 0]) if i == 0 else np.array([0.5, 0])  #有多少coach就需要设置每个coach的位置
+            coach.sight_range = 0.75    #设置每个coach的视野范围
+
+
         # add other objects as landmarks [home, prey1, prey2, prey3, market]
         num_landmarks = 8
         world.landmarks = [Landmark() for i in range(num_landmarks)]
@@ -64,7 +78,7 @@ class Scenario(BaseScenario):
                 landmark.i = i + num_agents
                 landmark.name = 'invader'
                 landmark.alive = True
-                landmark.collide = True 
+                landmark.collide = True
                 landmark.movable = False
                 landmark.size = 0.03
                 landmark.color = np.array([0., 0., 0.])
@@ -181,7 +195,6 @@ class Scenario(BaseScenario):
         world.observability_mask.fill(0)
         #mask = np.zeros((max_n_agents, max_n_entities))
         #mask_alive = np.zeros((max_n_agents, max_n_entities))
-
         for i, agent in enumerate(world.agents):
             if not agent.alive:
                 continue
@@ -202,6 +215,22 @@ class Scenario(BaseScenario):
                         #mask[i,max_n_agents+j] = 1.
                         world.observability_mask[i,max_n_agents+j] = 1.
         #world.observability_mask = np.concatenate([mask, mask_alive], -1)
+
+        # 填充每个coach的mask
+        for c, coach in enumerate(world.coaches):
+            coach_observability_mask = world.observability_mask_coaches[c]
+            coach_observability_mask.fill(0)
+            coach_observable_range = coach.sight_range
+            for i, agent in enumerate(world.agents):
+                if not agent.alive or np.sqrt(np.sum(np.square(coach.state.p_pos - agent.state.p_pos))) > coach_observable_range:
+                    continue
+                for j, a in enumerate(world.agents):
+                    if a.alive and np.sqrt(np.sum(np.square(coach.state.p_pos - a.state.p_pos))) <= coach_observable_range:
+                        coach_observability_mask[i,j] = 1.
+
+                for j, lm in enumerate(world.landmarks):
+                    if lm.alive and np.sqrt(np.sum(np.square(coach.state.p_pos - lm.state.p_pos))) <= coach_observable_range:
+                        coach_observability_mask[i, max_n_agents+j] = 1.
 
     def get_new_invader_position(self):
         th = np.random.rand() * np.pi * 2
@@ -311,7 +340,7 @@ class Scenario(BaseScenario):
 
     def global_reward(self, world):
         r = 0.
-        for a in world.agents:
+        for agent in world.agents:
             r += self.reward(agent, world)
         return r
 

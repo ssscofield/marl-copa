@@ -30,7 +30,7 @@ class Coach(nn.Module):
         he = self.other_encode(e) # [batch, n_others, dh]
         n_others = he.shape[1]
         x = torch.cat([ha, he], 1) # [batch, n_all, dh]
-        hidden = self.mha(x, ms) # [batch, n_agents, dh]
+        hidden = self.mha(x, ms) # [batch, n_agents, dh] 这里得到的是每个agent的 global representation
         return hidden
 
     def strategy(self, h):

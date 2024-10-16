@@ -44,6 +44,7 @@ class Mixer(nn.Module):
         dh_agent = args.agent_hidden_dim
         dh_coach = args.coach_hidden_dim
 
+        ##这里通过has coaches判断mixer网络是否要用到h隐藏层向量作为参数生成，也可以直接使用HyperNet
         if args.has_coach:
             self.coach_mixer_W1 = nn.Sequential(
                 nn.Linear(dh_coach, dh),

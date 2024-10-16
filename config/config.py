@@ -8,6 +8,7 @@ class Config:
         for key, value in config.items():
             setattr(self, key, value)
         self.has_coach = False
+        self.has_coaches = False
         self.init_args()
 
     def init_args(self):
@@ -31,7 +32,8 @@ class Config:
         self.agent_hidden_dim = args.agent_hidden_dim
         if "coach" in self.method:
             self.batch_size = int(self.batch_size * 8 / self.centralized_every)
-        self.has_coach = "coach" in self.method
+        self.has_coach = "coach" in self.method and "coaches" not in self.method
+        self.has_coaches = "coaches" in self.method
 
     def pprint(self):
         print("="*80)

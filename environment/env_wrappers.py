@@ -31,6 +31,9 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == 'get_observability':
             observability = env.get_observability()
             remote.send(observability)
+        elif cmd == 'get_observability_coaches':
+            observability_coaches = env.get_observability_coaches()
+            remote.send(np.array(observability_coaches))
         else:
             raise NotImplementedError
 
@@ -77,6 +80,11 @@ class SubprocVecEnv(VecEnv):
         for remote in self.remotes:
             remote.send(('get_observability', None))
         return np.stack([remote.recv() for remote in self.remotes])
+
+    def get_observability_coaches(self):
+        for remote in self.remotes:
+            remote.send(('get_observability_coaches', None))
+        return np.stack([remote.recv() for remote in self.remotes])  #remote.recv()每个线程得到的维度为[2,6,14]，最后返回的数组维度为[n_roll_outs,2,6,14]
 
     def step_async(self, actions):
         for i in range(self.nenvs):
@@ -133,6 +141,10 @@ class DummyVecEnv(VecEnv):
     def get_observability(self):
         entities = [env.get_observability() for env in self.envs]
         return np.array(entities)
+
+    def get_observability_coaches(self):
+        entities = [env.get_observability_coaches() for env in self.envs]
+        return np.expand_dims(np.array(entities[0]), axis=0)  # 这里返回的数组维度为[2,6,14],需要在前面添加一个1的维度变为[1,2,6,14]
 
     def step_async(self, actions):
         self.actions = actions

@@ -297,7 +297,7 @@ class Scenario(BaseScenario):
 
     def global_reward(self, world):
         r = 0.
-        for a in world.agents:
+        for agent in world.agents:
             r += self.reward(agent, world)
         return r
 
