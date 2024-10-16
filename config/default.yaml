@@ -1,6 +1,6 @@
-device: "cuda"
+device: "cpu"
 buffer_size: 100000
-n_rollout_threads: 8
+n_rollout_threads: 1
 seed: 0
 centralized_every: 4
 

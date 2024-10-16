@@ -32,18 +32,11 @@ marker_args = dict(
         ms=14)
 
 experiments = [
-    "aqmix+ctr4",
-    "aiqmix+ctr4",
-    "aqmix+coach+ctr4",
-    "aqmix+full+ctr4",
-    "aqmix+period+ctr4",
-    "aqmix+coach+vi+ctr2+vi0.001",
-    "aqmix+coach+vi+ctr4+vi0.001",
-    "aqmix+coach+vi+ctr8+vi0.001",
+    "aqmix+coaches"
 ]
-labels = ["aqmix", "aiqmix", "aqmix+coach", "aqmix+full", "aqmix+period", "copa(T=2)", "copa(T=4)", "copa(T=8)"]
+labels = ["aqmix+coaches"]
 
-runs = [0,1,2]
+runs = [0]
 c = 0
 color_dict = {}
 for exp,lb in zip(experiments, labels):
