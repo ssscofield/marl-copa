@@ -118,6 +118,9 @@ class MultiAgentEnv(gym.Env):
     def get_observability(self):
         return self.world.observability_mask
 
+    def get_observability_coaches(self):
+        return self.world.observability_mask_coaches
+
     def reset(self):
         # reset world
         self.reset_callback(self.world)

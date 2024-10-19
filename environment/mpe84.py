@@ -45,7 +45,7 @@ class Scenario(BaseScenario):
             coach.collide = False
             coach.movable = False
             coach.state.p_pos = np.array([-0.5, 0]) if i == 0 else np.array([0.5, 0])  #有多少coach就需要设置每个coach的位置
-            coach.sight_range = 0.75    #设置每个coach的视野范围
+            coach.sight_range = 1    #设置每个coach的视野范围
 
 
         # add other objects as landmarks [home, prey1, prey2, prey3, market]
