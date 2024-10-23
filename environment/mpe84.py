@@ -34,18 +34,26 @@ class Scenario(BaseScenario):
             agent.attribute = np.zeros((5))
             agent.size = 0.04
 
-        #添加 coaches
-        num_coaches = 2
+        # 添加 coaches
+        num_coaches = 4
         world.coaches = [Landmark() for i in range(num_coaches)]
-        world.observability_mask_coaches = [np.zeros((6,14)) for _ in range(num_coaches)] #有几个coach就要有几个对应的mask
+        world.observability_mask_coaches = [np.zeros((6, 14)) for _ in range(num_coaches)]  # 有几个coach就要有几个对应的mask
 
         for i, coach in enumerate(world.coaches):
             coach.i = i
             coach.name = "coach %d" % i
             coach.collide = False
             coach.movable = False
-            coach.state.p_pos = np.array([-0.5, 0]) if i == 0 else np.array([0.5, 0])  #有多少coach就需要设置每个coach的位置
-            coach.sight_range = 1    #设置每个coach的视野范围
+            if i == 0:
+                coach.state.p_pos = np.array([-0.5, 0.5])
+            elif i == 1:
+                coach.state.p_pos = np.array([0.5, 0.5])
+            elif i == 2:
+                coach.state.p_pos = np.array([-0.5, -0.5])
+            elif i == 3:
+                coach.state.p_pos = np.array([0.5, -0.5])
+            # coach.state.p_pos = np.array([-0.5, 0]) if i == 0 else np.array([0.5, 0])  #有多少coach就需要设置每个coach的位置
+            coach.sight_range = 0.75  # 设置每个coach的视野范围
 
 
         # add other objects as landmarks [home, prey1, prey2, prey3, market]

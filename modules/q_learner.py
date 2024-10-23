@@ -316,7 +316,7 @@ class QLearner:
         torch.save(self.mac.state_dict(), "{}/mac.th".format(path))
         torch.save(self.mixer.state_dict(), "{}/mixer.th".format(path))
         torch.save(self.optimizer.state_dict(), "{}/opt.th".format(path))
-        if self.args.has_coach:
+        if self.args.has_coach or self.args.has_coaches:
             torch.save(self.coach.state_dict(), "{}/coach.th".format(path))
             torch.save(self.coach_optimizer.state_dict(), "{}/coach_opt.th".format(path))
         if "vi" in self.method:

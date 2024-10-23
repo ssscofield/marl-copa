@@ -1,10 +1,10 @@
 device: "cuda"
 buffer_size: 100000
 n_rollout_threads: 1
-seed: 0
+seed: 1
 centralized_every: 4
 
-method: "aqmix+coaches"
+method: "aqmix+coaches+4"
 imaginary_lambda: 0.5
 
 # multi-head attention strategy
